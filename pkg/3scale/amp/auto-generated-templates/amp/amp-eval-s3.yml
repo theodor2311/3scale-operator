@@ -101,16 +101,6 @@ objects:
       local: false
     tags:
     - annotations:
-        openshift.io/display-name: AMP APIcast (latest)
-      from:
-        kind: ImageStreamTag
-        name: ${AMP_RELEASE}
-      generation: null
-      importPolicy: {}
-      name: latest
-      referencePolicy:
-        type: ""
-    - annotations:
         openshift.io/display-name: AMP APIcast ${AMP_RELEASE}
       from:
         kind: DockerImage
@@ -4152,7 +4142,7 @@ objects:
         - apicast-staging
         from:
           kind: ImageStreamTag
-          name: amp-apicast:latest
+          name: amp-apicast:${AMP_RELEASE}
       type: ImageChange
   status:
     availableReplicas: 0
@@ -4277,7 +4267,7 @@ objects:
         - apicast-production
         from:
           kind: ImageStreamTag
-          name: amp-apicast:latest
+          name: amp-apicast:${AMP_RELEASE}
       type: ImageChange
   status:
     availableReplicas: 0
