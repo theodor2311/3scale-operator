@@ -71,5 +71,7 @@ func (a *Apicast) options() (*component.ApicastOptions, error) {
 	aob.ResponseCodes("${APICAST_RESPONSE_CODES}")
 	aob.TenantName("${TENANT_NAME}")
 	aob.WildcardDomain("${WILDCARD_DOMAIN}")
+	aob.ProductionImageTag("${AMP_RELEASE}")
+	aob.StagingImageTag("${AMP_RELEASE}")
 	return aob.Build()
 }

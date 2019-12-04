@@ -9,12 +9,14 @@ import (
 
 type ApicastOptions struct {
 	// required options
-	appLabel       string
-	managementAPI  string
-	openSSLVerify  string
-	responseCodes  string
-	tenantName     string
-	wildcardDomain string
+	appLabel           string
+	managementAPI      string
+	openSSLVerify      string
+	responseCodes      string
+	tenantName         string
+	wildcardDomain     string
+	productionImageTag string
+	stagingImageTag    string
 
 	// non required options
 	productionResourceRequirements *v1.ResourceRequirements
@@ -49,6 +51,14 @@ func (a *ApicastOptionsBuilder) TenantName(tenantName string) {
 
 func (a *ApicastOptionsBuilder) WildcardDomain(wildcardDomain string) {
 	a.options.wildcardDomain = wildcardDomain
+}
+
+func (a *ApicastOptionsBuilder) ProductionImageTag(tag string) {
+	a.options.productionImageTag = tag
+}
+
+func (a *ApicastOptionsBuilder) StagingImageTag(tag string) {
+	a.options.stagingImageTag = tag
 }
 
 func (a *ApicastOptionsBuilder) ProductionResourceRequirements(resourceRequirements v1.ResourceRequirements) {
@@ -96,6 +106,12 @@ func (a *ApicastOptionsBuilder) setRequiredOptions() error {
 	}
 	if a.options.wildcardDomain == "" {
 		return fmt.Errorf("no wildcard domain has been provided")
+	}
+	if a.options.productionImageTag == "" {
+		return fmt.Errorf("no production image tag has been provided")
+	}
+	if a.options.stagingImageTag == "" {
+		return fmt.Errorf("no staging image tag has been provided")
 	}
 
 	return nil

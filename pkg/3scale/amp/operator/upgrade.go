@@ -48,7 +48,41 @@ func (u *UpgradeApiManager) upgradeImages() (reconcile.Result, error) {
 		}
 	}
 
+	// TODO should there be some kind of coordination/wait between the ImageStream
+	// tags creation and the trigger update/swap ??
+	res, err = u.upgradeDeploymentConfigs()
+	if res.Requeue || err != nil {
+		return res, err
+	}
+
+	// TODO because we are deprecating the use of the "latest" ImageStreamTag
+	// that tag is not necessary anymore. At this moment the upgrade does NOT take
+	// care of removing that ImageStreamTag although it is not used anymore.
+	// Should we take care of doing that?. Keep in mind that this would probably
+	// require some kind of coordination / wait to make sure we do not remove the
+	// tag until the DeploymentConfigs are successfully using the new tag
+
 	return reconcile.Result{}, nil
+}
+
+func (u *UpgradeApiManager) upgradeDeploymentConfigs() (reconcile.Result, error) {
+	res, err := u.upgradeAPIcastDeploymentConfigs()
+	if res.Requeue || err != nil {
+		return res, err
+	}
+
+	return reconcile.Result{}, nil
+}
+
+func (u *UpgradeApiManager) upgradeAPIcastDeploymentConfigs() (reconcile.Result, error) {
+	baseReconciler := NewBaseReconciler(u.Client, u.ApiClientReader, u.Scheme, u.Logger)
+	baseLogicReconciler := NewBaseLogicReconciler(baseReconciler)
+	reconciler := NewApicastReconciler(NewBaseAPIManagerLogicReconciler(baseLogicReconciler, u.Cr))
+	// TODO we are only interested on the DCs reconciliation, specifically on the ImageChange trigger
+	// so maybe is not a good idea to implement upgrade procedure by reconcile procedure??
+	// the Reconcile method will try to reconcile everything that is reconciled in the Apicast reconciler.
+	// This is, DeploymentConfigs(and not only the ImageChange trigger), ConfigMaps, Secrets, ...
+	return reconciler.Reconcile()
 }
 
 func (u *UpgradeApiManager) upgradeAMPImageStreams() (reconcile.Result, error) {

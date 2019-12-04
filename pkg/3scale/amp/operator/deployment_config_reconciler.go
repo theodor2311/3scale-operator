@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/3scale/3scale-operator/pkg/helper"
 	"github.com/go-logr/logr"
@@ -126,4 +127,47 @@ func NewCreateOnlyDCReconciler() *CreateOnlyDCReconciler {
 
 func (r *CreateOnlyDCReconciler) IsUpdateNeeded(desired, existing *appsv1.DeploymentConfig) bool {
 	return false
+}
+
+func DeploymentConfigReconcileDeploymentTriggerImageChangeParamsName(desired, existing *appsv1.DeploymentConfig, logger logr.Logger) bool {
+	update := false
+	findDeploymentTriggerOnImageChange := func(triggerPolicies []appsv1.DeploymentTriggerPolicy) (int, error) {
+		result := -1
+		for i := range triggerPolicies {
+			if triggerPolicies[i].Type == appsv1.DeploymentTriggerOnImageChange {
+				if result != -1 {
+					return -1, fmt.Errorf("found more than one imageChangeParams Deployment trigger policy")
+				}
+				result = i
+			}
+		}
+
+		if result == -1 {
+			return -1, fmt.Errorf("no imageChangeParams deployment trigger policy found")
+		}
+
+		return result, nil
+	}
+
+	desiredDeploymentTriggerImageChangePos, err := findDeploymentTriggerOnImageChange(desired.Spec.Triggers)
+	if err != nil {
+		panic(fmt.Sprintf("unexpected: '%s' in DeploymentConfig '%s'", err, desired.Name))
+	}
+
+	existingDeploymentTriggerImageChangePos, err := findDeploymentTriggerOnImageChange(existing.Spec.Triggers)
+	if err != nil {
+		panic(fmt.Sprintf("unexpected: '%s' in DeploymentConfig '%s'", err, existing.Name))
+	}
+
+	desiredDeploymentTriggerImageChangeParams := desired.Spec.Triggers[desiredDeploymentTriggerImageChangePos].ImageChangeParams
+	existingDeploymentTriggerImageChangeParams := existing.Spec.Triggers[existingDeploymentTriggerImageChangePos].ImageChangeParams
+
+	if !reflect.DeepEqual(existingDeploymentTriggerImageChangeParams.From.Name, desiredDeploymentTriggerImageChangeParams.From.Name) {
+		diff := cmp.Diff(existingDeploymentTriggerImageChangeParams.From.Name, desiredDeploymentTriggerImageChangeParams.From.Name)
+		logger.Info(fmt.Sprintf("%s ImageStream tag name in imageChangeParams trigger changed: %s", desired.Name, diff))
+		update = true
+		existingDeploymentTriggerImageChangeParams.From.Name = desiredDeploymentTriggerImageChangeParams.From.Name
+	}
+
+	return update
 }

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/3scale/3scale-operator/pkg/3scale/amp/component"
+	"github.com/3scale/3scale-operator/pkg/3scale/amp/product"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -13,6 +14,8 @@ func (o *OperatorApicastOptionsProvider) GetApicastOptions() (*component.Apicast
 	optProv.AppLabel(*o.APIManagerSpec.AppLabel)
 	optProv.TenantName(*o.APIManagerSpec.TenantName)
 	optProv.WildcardDomain(o.APIManagerSpec.WildcardDomain)
+	optProv.StagingImageTag(product.ThreescaleRelease)
+	optProv.ProductionImageTag(product.ThreescaleRelease)
 	optProv.ManagementAPI(*o.APIManagerSpec.Apicast.ApicastManagementAPI)
 	optProv.OpenSSLVerify(strconv.FormatBool(*o.APIManagerSpec.Apicast.OpenSSLVerify))        // TODO is this a good place to make the conversion?
 	optProv.ResponseCodes(strconv.FormatBool(*o.APIManagerSpec.Apicast.IncludeResponseCodes)) // TODO is this a good place to make the conversion?

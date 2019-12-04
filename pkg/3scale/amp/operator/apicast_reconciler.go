@@ -51,6 +51,9 @@ func (r *ApicastStagingDCReconciler) IsUpdateNeeded(desired, existing *appsv1.De
 	tmpUpdate = DeploymentConfigReconcileContainerResources(desired, existing, r.Logger())
 	update = update || tmpUpdate
 
+	tmpUpdate = DeploymentConfigReconcileDeploymentTriggerImageChangeParamsName(desired, existing, r.Logger())
+	update = update || tmpUpdate
+
 	return update
 }
 
