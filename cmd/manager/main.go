@@ -8,7 +8,9 @@ import (
 	"runtime"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	v1 "k8s.io/api/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
 
 	"github.com/3scale/3scale-operator/pkg/3scale/amp/product"
 	"github.com/3scale/3scale-operator/pkg/apis"
@@ -16,6 +18,7 @@ import (
 	"github.com/3scale/3scale-operator/version"
 	"github.com/prometheus/client_golang/prometheus"
 
+	appsv1alpha1 "github.com/3scale/3scale-operator/pkg/apis/apps/v1alpha1"
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
@@ -23,6 +26,7 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/restmapper"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	"github.com/spf13/pflag"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -116,9 +120,27 @@ func main() {
 	register3scaleVersionInfoMetric()
 
 	// Create Service object to expose the metrics port.
-	_, err = metrics.ExposeMetricsPort(ctx, metricsPort)
+	metricService, err := metrics.ExposeMetricsPort(ctx, metricsPort)
 	if err != nil {
-		log.Info(err.Error())
+		log.Error(err, "")
+	}
+
+	err = updateMetricServiceLabels(ctx, cfg, metricService)
+	if err != nil {
+		log.Error(err, "Could not add monitoring-key label to operator metrics Service")
+	}
+
+	// CreateServiceMonitors will automatically create the prometheus-operator ServiceMonitor resources
+	// necessary to configure Prometheus to scrape metrics from this operator.
+	_, err = metrics.CreateServiceMonitors(cfg, namespace, []*v1.Service{metricService})
+	if err != nil {
+		log.Info("Could not create ServiceMonitor object", "error", err.Error())
+		// Available in operator-sdk 0.10.0
+		// If this operator is deployed to a cluster without the prometheus-operator running, it will return
+		// ErrServiceMonitorNotPresent, which can be used to safely skip ServiceMonitor creation.
+		//if err == metrics.ErrServiceMonitorNotPresent {
+		//	log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects", "error", err.Error())
+		//}
 	}
 
 	log.Info("Starting the Cmd.")
@@ -143,4 +165,31 @@ func register3scaleVersionInfoMetric() {
 	)
 	// Register custom metrics with the global prometheus registry
 	crmetrics.Registry.MustRegister(threeScaleVersionInfo)
+}
+
+func updateMetricServiceLabels(ctx context.Context, cfg *rest.Config, service *v1.Service) error {
+	if service == nil {
+		return fmt.Errorf("service doesn't exist")
+	}
+
+	kclient, err := client.New(cfg, client.Options{})
+	if err != nil {
+		return err
+	}
+
+	updatedLabels := map[string]string{
+		"monitoring-key": "middleware",
+		"app":            appsv1alpha1.Default3scaleAppLabel,
+	}
+	for k, v := range service.ObjectMeta.Labels {
+		updatedLabels[k] = v
+	}
+	service.ObjectMeta.Labels = updatedLabels
+
+	err = kclient.Update(ctx, service)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
