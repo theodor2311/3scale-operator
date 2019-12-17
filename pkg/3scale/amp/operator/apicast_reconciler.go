@@ -2,6 +2,8 @@ package operator
 
 import (
 	"github.com/3scale/3scale-operator/pkg/3scale/amp/component"
+	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
+	integreatlyv1alpha1 "github.com/integr8ly/grafana-operator/pkg/apis/integreatly/v1alpha1"
 	appsv1 "github.com/openshift/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -98,6 +100,21 @@ func (r *ApicastReconciler) Reconcile() (reconcile.Result, error) {
 		return reconcile.Result{}, err
 	}
 
+	err = r.reconcileGrafanaDashboard(component.ApicastGrafanaDashboard())
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	err = r.reconcilePrometheusRules(component.ApicastPrometheusRules(r.apiManager.Namespace))
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	err = r.reconcileServiceMonitor(component.ApicastServiceMonitor())
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	return reconcile.Result{}, nil
 }
 
@@ -133,4 +150,19 @@ func (r *ApicastReconciler) reconcileProductionService(desiredService *v1.Servic
 func (r *ApicastReconciler) reconcileEnvironmentConfigMap(desiredConfigMap *v1.ConfigMap) error {
 	reconciler := NewConfigMapBaseReconciler(r.BaseAPIManagerLogicReconciler, NewApicastEnvCMReconciler())
 	return reconciler.Reconcile(desiredConfigMap)
+}
+
+func (r *ApicastReconciler) reconcileGrafanaDashboard(desired *integreatlyv1alpha1.GrafanaDashboard) error {
+	reconciler := NewGrafanaDashboardBaseReconciler(r.BaseAPIManagerLogicReconciler, NewCreateOnlyGrafanaDashboardReconciler())
+	return reconciler.Reconcile(desired)
+}
+
+func (r *ApicastReconciler) reconcilePrometheusRules(desired *monitoringv1.PrometheusRule) error {
+	reconciler := NewPrometheusRuleBaseReconciler(r.BaseAPIManagerLogicReconciler, NewCreateOnlyPrometheusRuleReconciler())
+	return reconciler.Reconcile(desired)
+}
+
+func (r *ApicastReconciler) reconcileServiceMonitor(desired *monitoringv1.ServiceMonitor) error {
+	reconciler := NewServiceMonitorBaseReconciler(r.BaseAPIManagerLogicReconciler, NewCreateOnlyServiceMonitorReconciler())
+	return reconciler.Reconcile(desired)
 }
