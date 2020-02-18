@@ -26,6 +26,7 @@ import (
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -188,10 +189,18 @@ func addMetrics(ctx context.Context, cfg *rest.Config, namespace string) {
 func serveCRMetrics(cfg *rest.Config) error {
 	// Below function returns filtered operator/CustomResource specific GVKs.
 	// For more control override the below GVK list with your own custom logic.
-	filteredGVK, err := k8sutil.GetGVKsFromAddToScheme(apis.AddToScheme)
+	gvks, err := k8sutil.GetGVKsFromAddToScheme(apis.AddToScheme)
 	if err != nil {
 		return err
 	}
+
+	// We perform our custom GKV filtering on top of the one performed
+	// by operator-sdk code
+	filteredGVK := filterGKVsFromAddToScheme(gvks)
+	if err != nil {
+		return err
+	}
+
 	// Get the namespace the operator is currently deployed in.
 	operatorNs, err := k8sutil.GetOperatorNamespace()
 	if err != nil {
@@ -205,4 +214,67 @@ func serveCRMetrics(cfg *rest.Config) error {
 		return err
 	}
 	return nil
+}
+
+// TODO improve/change this
+func filterGKVsFromAddToScheme(gvks []schema.GroupVersionKind) []schema.GroupVersionKind {
+	// we use gkvFilters to filter from the existing GKVs
+	// TODO the implementation is somewhat buggy at the moment.
+	// To specify "we don't care about the group" we leave the Group as
+	// the empty string in gkvFilters. However, the empty string Group
+	// in real GKVs means the "core" group. So, the way it is implemented right
+	// now there's no real way to tell we want ONLY the core group. We could
+	// specify it as the empty string and then setting the version to "v1"
+	// (which is the core group), but then we would not be able to specify
+	// "we don't care about the version"
+	gvkFilters := []schema.GroupVersionKind{
+		// Kubernetes types
+		schema.GroupVersionKind{Kind: "PersistentVolumeClaim"},
+		schema.GroupVersionKind{Kind: "ServiceAccount"},
+		schema.GroupVersionKind{Kind: "Secret"},
+		schema.GroupVersionKind{Kind: "Pod"},
+		schema.GroupVersionKind{Kind: "ConfigMap"},
+		schema.GroupVersionKind{Kind: "Service"},
+
+		// OpenShift types
+		schema.GroupVersionKind{Group: "route.openshift.io", Kind: "Route"},
+		schema.GroupVersionKind{Group: "image.openshift.io", Kind: "ImageStream"},
+		schema.GroupVersionKind{Group: "apps.openshift.io", Kind: "DeploymentConfig"},
+
+		// Custom resource types
+		schema.GroupVersionKind{Group: "capabilities.3scale.net", Kind: "Plan"},
+		schema.GroupVersionKind{Group: "capabilities.3scale.net", Kind: "API"},
+		schema.GroupVersionKind{Group: "capabilities.3scale.net", Kind: "Limit"},
+		schema.GroupVersionKind{Group: "capabilities.3scale.net", Kind: "MappingRule"},
+		schema.GroupVersionKind{Group: "capabilities.3scale.net", Kind: "Tenant"},
+		schema.GroupVersionKind{Group: "capabilities.3scale.net", Kind: "Metric"},
+		schema.GroupVersionKind{Group: "capabilities.3scale.net", Kind: "Binding"},
+		schema.GroupVersionKind{Group: "apps.3scale.net", Kind: "APIManager"},
+	}
+
+	ownGVKs := []schema.GroupVersionKind{}
+	for _, gvk := range gvks {
+		for _, gvkFilter := range gvkFilters {
+			match := true
+			if gvkFilter.Kind == "" && gvkFilter.Group == "" && gvkFilter.Version == "" {
+				log.V(1).Info("gvkFilter should at least have one of its fields defined. Skipping...")
+				match = false
+			} else {
+				if gvkFilter.Kind != "" && gvkFilter.Kind != gvk.Kind {
+					match = false
+				}
+				if gvkFilter.Group != "" && gvkFilter.Group != gvk.Group {
+					match = false
+				}
+				if gvkFilter.Version != "" && gvkFilter.Version != gvk.Version {
+					match = false
+				}
+			}
+			if match {
+				ownGVKs = append(ownGVKs, gvk)
+			}
+		}
+	}
+
+	return ownGVKs
 }
