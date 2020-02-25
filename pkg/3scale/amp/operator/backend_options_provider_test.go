@@ -1,14 +1,31 @@
 package operator
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/3scale/3scale-operator/pkg/3scale/amp/component"
 	appsv1alpha1 "github.com/3scale/3scale-operator/pkg/apis/apps/v1alpha1"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+)
+
+const (
+	wildcardDomain             = "test.3scale.net"
+	appLabel                   = "someLabel"
+	apimanagerName             = "example-apimanager"
+	namespace                  = "someNS"
+	tenantName                 = "someTenant"
+	trueValue                  = true
+	listenerReplicaCount int64 = 3
+	workerReplicaCount   int64 = 4
+	cronReplicaCount     int64 = 5
 )
 
 func getInternalSecret(namespace string) *v1.Secret {
@@ -19,8 +36,8 @@ func getInternalSecret(namespace string) *v1.Secret {
 			Namespace: namespace,
 		},
 		StringData: map[string]string{
-			component.BackendSecretInternalApiUsernameFieldName: "usernameValue",
-			component.BackendSecretInternalApiPasswordFieldName: "passwordValue",
+			component.BackendSecretInternalApiUsernameFieldName: "someUserName",
+			component.BackendSecretInternalApiPasswordFieldName: "somePasswd",
 		},
 		Type: v1.SecretTypeOpaque,
 	}
@@ -60,14 +77,37 @@ func getRedisSecret(namespace string) *v1.Secret {
 	}
 }
 
+func defaultBackendOoptions(opts *component.BackendOptions) *component.BackendOptions {
+	return &component.BackendOptions{
+		ServiceEndpoint:              component.DefaultBackendServiceEndpoint(),
+		RouteEndpoint:                fmt.Sprintf("https://backend-%s.%s", tenantName, wildcardDomain),
+		StorageURL:                   component.DefaultBackendRedisStorageURL(),
+		QueuesURL:                    component.DefaultBackendRedisQueuesURL(),
+		StorageSentinelHosts:         component.DefaultBackendStorageSentinelHosts(),
+		StorageSentinelRole:          component.DefaultBackendStorageSentinelRole(),
+		QueuesSentinelHosts:          component.DefaultBackendQueuesSentinelHosts(),
+		QueuesSentinelRole:           component.DefaultBackendQueuesSentinelRole(),
+		ListenerResourceRequirements: component.DefaultBackendListenerResourceRequirements(),
+		WorkerResourceRequirements:   component.DefaultBackendWorkerResourceRequirements(),
+		CronResourceRequirements:     component.DefaultCronResourceRequirements(),
+		ListenerReplicas:             int32(listenerReplicaCount),
+		WorkerReplicas:               int32(workerReplicaCount),
+		CronReplicas:                 int32(cronReplicaCount),
+		AppLabel:                     appLabel,
+		SystemBackendUsername:        component.DefaultSystemBackendUsername(),
+		SystemBackendPassword:        opts.SystemBackendPassword,
+		TenantName:                   tenantName,
+		WildcardDomain:               wildcardDomain,
+	}
+}
+
 func TestGetBackendOptions(t *testing.T) {
-	wildcardDomain := "test.3scale.net"
-	appLabel := "someLabel"
-	name := "example-apimanager"
-	namespace := "someNS"
-	tenantName := "someTenant"
-	trueValue := true
-	var oneValue int64 = 1
+	tmpTrueValue := trueValue
+	tmpAppLabel := appLabel
+	tmpTenantName := tenantName
+	tmpListenerReplicaCount := listenerReplicaCount
+	tmpWorkerReplicaCount := workerReplicaCount
+	tmpCronReplicaCount := cronReplicaCount
 
 	cases := []struct {
 		testName                    string
@@ -75,32 +115,71 @@ func TestGetBackendOptions(t *testing.T) {
 		internalSecret              *v1.Secret
 		listenerSecret              *v1.Secret
 		redisSecret                 *v1.Secret
+		expectedOptionsFactory      func(*component.BackendOptions) *component.BackendOptions
 	}{
-		{"WithResourceRequirements", true, nil, nil, nil},
-		{"InternalSecret", false, getInternalSecret(namespace), nil, nil},
-		{"ListenerSecret", false, nil, getListenerSecret(namespace), nil},
-		{"RedisSecret", false, nil, nil, getRedisSecret(namespace)},
+		{"Default", true, nil, nil, nil,
+			func(opts *component.BackendOptions) *component.BackendOptions {
+				return defaultBackendOoptions(opts)
+			},
+		},
+		{"WithoutResourceRequirements", false, nil, nil, nil,
+			func(in *component.BackendOptions) *component.BackendOptions {
+				opts := defaultBackendOoptions(in)
+				opts.ListenerResourceRequirements = v1.ResourceRequirements{}
+				opts.WorkerResourceRequirements = v1.ResourceRequirements{}
+				opts.CronResourceRequirements = v1.ResourceRequirements{}
+				return opts
+			},
+		},
+		{"InternalSecret", true, getInternalSecret(namespace), nil, nil,
+			func(in *component.BackendOptions) *component.BackendOptions {
+				opts := defaultBackendOoptions(in)
+				opts.SystemBackendUsername = "someUserName"
+				opts.SystemBackendPassword = "somePasswd"
+				return opts
+			},
+		},
+		{"ListenerSecret", true, nil, getListenerSecret(namespace), nil,
+			func(in *component.BackendOptions) *component.BackendOptions {
+				opts := defaultBackendOoptions(in)
+				opts.ServiceEndpoint = "serviceValue"
+				opts.RouteEndpoint = "routeValue"
+				return opts
+			},
+		},
+		{"RedisSecret", true, nil, nil, getRedisSecret(namespace),
+			func(in *component.BackendOptions) *component.BackendOptions {
+				opts := defaultBackendOoptions(in)
+				opts.StorageURL = "storageURLValue"
+				opts.QueuesURL = "queueURLValue"
+				opts.StorageSentinelHosts = "storageSentinelHostsValue"
+				opts.StorageSentinelRole = "storageSentinelRoleValue"
+				opts.QueuesSentinelHosts = "queueSentinelHostsValue"
+				opts.QueuesSentinelRole = "queueSentinelRoleValue"
+				return opts
+			},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.testName, func(subT *testing.T) {
 			apimanager := &appsv1alpha1.APIManager{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      apimanagerName,
 					Namespace: namespace,
 				},
 				Spec: appsv1alpha1.APIManagerSpec{
 					APIManagerCommonSpec: appsv1alpha1.APIManagerCommonSpec{
-						AppLabel:                     &appLabel,
-						ImageStreamTagImportInsecure: &trueValue,
+						AppLabel:                     &tmpAppLabel,
+						ImageStreamTagImportInsecure: &tmpTrueValue,
 						WildcardDomain:               wildcardDomain,
-						TenantName:                   &tenantName,
+						TenantName:                   &tmpTenantName,
 						ResourceRequirementsEnabled:  &tc.resourceRequirementsEnabled,
 					},
 					Backend: &appsv1alpha1.BackendSpec{
-						ListenerSpec: &appsv1alpha1.BackendListenerSpec{Replicas: &oneValue},
-						WorkerSpec:   &appsv1alpha1.BackendWorkerSpec{Replicas: &oneValue},
-						CronSpec:     &appsv1alpha1.BackendCronSpec{Replicas: &oneValue},
+						ListenerSpec: &appsv1alpha1.BackendListenerSpec{Replicas: &tmpListenerReplicaCount},
+						WorkerSpec:   &appsv1alpha1.BackendWorkerSpec{Replicas: &tmpWorkerReplicaCount},
+						CronSpec:     &appsv1alpha1.BackendCronSpec{Replicas: &tmpCronReplicaCount},
 					},
 				},
 			}
@@ -117,14 +196,14 @@ func TestGetBackendOptions(t *testing.T) {
 
 			cl := fake.NewFakeClient(objs...)
 			optsProvider := NewOperatorBackendOptionsProvider(&apimanager.Spec, namespace, cl)
-			_, err := optsProvider.GetBackendOptions()
+			opts, err := optsProvider.GetBackendOptions()
 			if err != nil {
 				t.Error(err)
 			}
-			// created "opts" cannot be tested  here, it only has set methods
-			// and cannot assert on setted values from a different package
-			// TODO: refactor options provider structure
-			// then validate setted resources
+			expectedOptions := tc.expectedOptionsFactory(opts)
+			if !reflect.DeepEqual(expectedOptions, opts) {
+				subT.Errorf("Resulting expected options differ: %s", cmp.Diff(expectedOptions, opts, cmpopts.IgnoreUnexported(resource.Quantity{})))
+			}
 		})
 	}
 }
