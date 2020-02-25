@@ -12,11 +12,9 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 
-	"github.com/3scale/3scale-operator/pkg/3scale/amp/product"
 	"github.com/3scale/3scale-operator/pkg/apis"
 	"github.com/3scale/3scale-operator/pkg/controller"
 	"github.com/3scale/3scale-operator/version"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
@@ -31,7 +29,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
-	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
 // Change below variables to serve metrics on different host or port.
@@ -117,8 +114,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	register3scaleVersionInfoMetric()
-
 	// Add the Metrics Service
 	addMetrics(ctx, cfg, namespace)
 
@@ -129,21 +124,6 @@ func main() {
 		log.Error(err, "Manager exited non-zero")
 		os.Exit(1)
 	}
-}
-
-func register3scaleVersionInfoMetric() {
-	threeScaleVersionInfo := prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "threescale_version_info",
-			Help: "3scale Operator version and product version",
-			ConstLabels: prometheus.Labels{
-				"operator_version": version.Version,
-				"version":          product.ThreescaleRelease,
-			},
-		},
-	)
-	// Register custom metrics with the global prometheus registry
-	crmetrics.Registry.MustRegister(threeScaleVersionInfo)
 }
 
 // addMetrics will create the Services and Service Monitors to allow the operator export the metrics by using
