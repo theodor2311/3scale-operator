@@ -101,8 +101,7 @@ func (s *SystemOptionsProvider) setSystemMemcachedOptions() error {
 	if err != nil {
 		return err
 	}
-	// not nil value is ensured
-	s.options.MemcachedServers = *val
+	s.options.MemcachedServers = val
 
 	return nil
 }
@@ -115,8 +114,7 @@ func (s *SystemOptionsProvider) setSystemRecaptchaOptions() error {
 	if err != nil {
 		return err
 	}
-	// not nil value is ensured
-	s.options.RecaptchaPublicKey = val
+	s.options.RecaptchaPublicKey = &val
 
 	val, err = s.secretSource.FieldValue(
 		component.SystemSecretSystemRecaptchaSecretName,
@@ -125,8 +123,7 @@ func (s *SystemOptionsProvider) setSystemRecaptchaOptions() error {
 	if err != nil {
 		return err
 	}
-	// not nil value is ensured
-	s.options.RecaptchaPrivateKey = val
+	s.options.RecaptchaPrivateKey = &val
 
 	return nil
 }
@@ -139,8 +136,7 @@ func (s *SystemOptionsProvider) setSystemEventHookOptions() error {
 	if err != nil {
 		return err
 	}
-	// not nil value is ensured
-	s.options.BackendSharedSecret = *val
+	s.options.BackendSharedSecret = val
 
 	val, err = s.secretSource.FieldValue(
 		component.SystemSecretSystemEventsHookSecretName,
@@ -149,8 +145,7 @@ func (s *SystemOptionsProvider) setSystemEventHookOptions() error {
 	if err != nil {
 		return err
 	}
-	// not nil value is ensured
-	s.options.EventHooksURL = *val
+	s.options.EventHooksURL = val
 
 	return nil
 }
@@ -163,8 +158,7 @@ func (s *SystemOptionsProvider) setSystemRedisOptions() error {
 	if err != nil {
 		return err
 	}
-	// not nil value is ensured
-	s.options.RedisURL = *val
+	s.options.RedisURL = val
 
 	cases := []struct {
 		field       **string
@@ -221,8 +215,7 @@ func (s *SystemOptionsProvider) setSystemRedisOptions() error {
 		if err != nil {
 			return err
 		}
-		// not nil value is ensured
-		*option.field = val
+		*option.field = &val
 	}
 
 	return nil
@@ -236,8 +229,7 @@ func (s *SystemOptionsProvider) setSystemAppOptions() error {
 	if err != nil {
 		return err
 	}
-	// not nil value is ensured
-	s.options.AppSecretKeyBase = *val
+	s.options.AppSecretKeyBase = val
 
 	return nil
 }
@@ -298,8 +290,7 @@ func (s *SystemOptionsProvider) setSystemSeedOptions() error {
 		if err != nil {
 			return err
 		}
-		// not nil value is ensured
-		*option.field = *val
+		*option.field = val
 	}
 
 	val, err := s.secretSource.FieldValue(
@@ -309,8 +300,7 @@ func (s *SystemOptionsProvider) setSystemSeedOptions() error {
 	if err != nil {
 		return err
 	}
-	// not nil value is ensured
-	s.options.AdminEmail = val
+	s.options.AdminEmail = &val
 
 	return nil
 }
@@ -323,8 +313,7 @@ func (s *SystemOptionsProvider) setSystemMasterApicastOptions() error {
 	if err != nil {
 		return err
 	}
-	// not nil value is ensured
-	s.options.ApicastAccessToken = *val
+	s.options.ApicastAccessToken = val
 
 	// TODO we do not reconcile ProxyConfigEndpoint nor BaseURL fields because they are dependant on the TenantName
 	s.options.ApicastSystemMasterProxyConfigEndpoint = component.DefaultApicastSystemMasterProxyConfigEndpoint(s.options.ApicastAccessToken)
@@ -390,8 +379,7 @@ func (s *SystemOptionsProvider) setSystemSMTPOptions() error {
 		if err != nil {
 			return err
 		}
-		// not nil value is ensured
-		*option.field = val
+		*option.field = &val
 	}
 
 	s.options.SmtpSecretOptions = smtpSecretOptions
