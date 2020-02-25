@@ -28,16 +28,16 @@ const (
 	cronReplicaCount     int64 = 5
 )
 
-func getInternalSecret(namespace string) *v1.Secret {
+func getInternalSecret() *v1.Secret {
 	return &v1.Secret{
 		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      component.BackendSecretInternalApiSecretName,
 			Namespace: namespace,
 		},
-		StringData: map[string]string{
-			component.BackendSecretInternalApiUsernameFieldName: "someUserName",
-			component.BackendSecretInternalApiPasswordFieldName: "somePasswd",
+		Data: map[string][]byte{
+			component.BackendSecretInternalApiUsernameFieldName: []byte("someUserName"),
+			component.BackendSecretInternalApiPasswordFieldName: []byte("somePasswd"),
 		},
 		Type: v1.SecretTypeOpaque,
 	}
@@ -50,9 +50,9 @@ func getListenerSecret(namespace string) *v1.Secret {
 			Name:      component.BackendSecretBackendListenerSecretName,
 			Namespace: namespace,
 		},
-		StringData: map[string]string{
-			component.BackendSecretBackendListenerServiceEndpointFieldName: "serviceValue",
-			component.BackendSecretBackendListenerRouteEndpointFieldName:   "routeValue",
+		Data: map[string][]byte{
+			component.BackendSecretBackendListenerServiceEndpointFieldName: []byte("serviceValue"),
+			component.BackendSecretBackendListenerRouteEndpointFieldName:   []byte("routeValue"),
 		},
 		Type: v1.SecretTypeOpaque,
 	}
@@ -65,13 +65,13 @@ func getRedisSecret(namespace string) *v1.Secret {
 			Name:      component.BackendSecretBackendRedisSecretName,
 			Namespace: namespace,
 		},
-		StringData: map[string]string{
-			component.BackendSecretBackendRedisStorageURLFieldName:           "storageURLValue",
-			component.BackendSecretBackendRedisQueuesURLFieldName:            "queueURLValue",
-			component.BackendSecretBackendRedisStorageSentinelHostsFieldName: "storageSentinelHostsValue",
-			component.BackendSecretBackendRedisStorageSentinelRoleFieldName:  "storageSentinelRoleValue",
-			component.BackendSecretBackendRedisQueuesSentinelHostsFieldName:  "queueSentinelHostsValue",
-			component.BackendSecretBackendRedisQueuesSentinelRoleFieldName:   "queueSentinelRoleValue",
+		Data: map[string][]byte{
+			component.BackendSecretBackendRedisStorageURLFieldName:           []byte("storageURLValue"),
+			component.BackendSecretBackendRedisQueuesURLFieldName:            []byte("queueURLValue"),
+			component.BackendSecretBackendRedisStorageSentinelHostsFieldName: []byte("storageSentinelHostsValue"),
+			component.BackendSecretBackendRedisStorageSentinelRoleFieldName:  []byte("storageSentinelRoleValue"),
+			component.BackendSecretBackendRedisQueuesSentinelHostsFieldName:  []byte("queueSentinelHostsValue"),
+			component.BackendSecretBackendRedisQueuesSentinelRoleFieldName:   []byte("queueSentinelRoleValue"),
 		},
 		Type: v1.SecretTypeOpaque,
 	}
@@ -131,7 +131,7 @@ func TestGetBackendOptions(t *testing.T) {
 				return opts
 			},
 		},
-		{"InternalSecret", true, getInternalSecret(namespace), nil, nil,
+		{"InternalSecret", true, getInternalSecret(), nil, nil,
 			func(in *component.BackendOptions) *component.BackendOptions {
 				opts := defaultBackendOoptions(in)
 				opts.SystemBackendUsername = "someUserName"
